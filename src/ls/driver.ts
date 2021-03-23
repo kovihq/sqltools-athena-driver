@@ -1,0 +1,358 @@
+import AbstractDriver from '@sqltools/base-driver';
+import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue } from '@sqltools/types';
+import queries from './queries';
+import { v4 as generateId } from 'uuid';
+import { Athena } from 'aws-sdk';
+/**
+ * set Driver lib to the type of your connection.
+ * Eg for postgres:
+ * import { Pool, PoolConfig } from 'pg';
+ * ...
+ * type DriverLib = Pool;
+ * type DriverOptions = PoolConfig;
+ *
+ * This will give you completions iside of the library
+ */
+type DriverLib = typeof Athena;
+type DriverOptions = any;
+
+new Athena();
+
+/**
+ * MOCKED DB DRIVER
+ * THIS IS JUST AN EXAMPLE AND THE LINES BELOW SHOUDL BE REMOVED!
+ */
+// import fakeDbLib from './mylib'; // this is what you should do
+const fakeDbLib = {
+  open: () => Promise.resolve(fakeDbLib),
+  query: (..._args: any[]) => {
+    const nResults = parseInt((Math.random() * 1000).toFixed(0));
+    const nCols = parseInt((Math.random() * 100).toFixed(0));
+    const colNames = [...new Array(nCols)].map((_, index) => `col${index}`);
+    const generateRow = () => {
+      const row = {};
+      colNames.forEach(c => {
+        row[c] = Math.random() * 1000;
+      });
+      return row;
+    }
+    const results = [...new Array(nResults)].map(generateRow);
+    return Promise.resolve([results]);
+  },
+  close: () => Promise.resolve(),
+};
+
+
+/* LINES ABOVE CAN BE REMOVED */
+
+
+export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
+
+  queries = queries
+
+  /**
+   * If you driver depends on node packages, list it below on `deps` prop.
+   * It will be installed automatically on first use of your driver.
+   */
+  public readonly deps: typeof AbstractDriver.prototype['deps'] = [{
+    type: AbstractDriver.CONSTANTS.DEPENDENCY_PACKAGE,
+    name: 'lodash',
+    // version: 'x.x.x',
+  }];
+
+  /** if you need to require your lib in runtime and then
+   * use `this.lib.methodName()` anywhere and vscode will take care of the dependencies
+   * to be installed on a cache folder
+   **/
+  // private get lib() {
+  //   return this.requireDep('node-packge-name') as DriverLib;
+  // }
+
+  public async open() {
+    if (this.connection) {
+      return this.connection;
+    }
+
+    this.connection = Promise.resolve(new Athena({
+      credentials: {
+        accessKeyId: this.credentials.accessKeyId,
+        secretAccessKey: this.credentials.secretAccessKey,
+      },
+      region: this.credentials.region || 'us-east-1',
+    }));
+
+    return this.connection;
+  }
+
+  public async close() {
+    console.log('RA RÁ')
+  }
+
+  private sleep = (time: number) => new Promise((resolve) => setTimeout(() => resolve(true), time));
+
+  private rawQuery = async (query: string) => {
+    const db = await this.open();
+
+    const queryExecution = await db.startQueryExecution({
+      QueryString: query,
+    }).promise();
+
+    let queryCheckExecution = await db.getQueryExecution({ 
+      QueryExecutionId: queryExecution.QueryExecutionId,
+    }).promise();
+
+    const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
+
+    let i = 1;
+    console.log(`é ${i} pápápá`)
+
+    while (!endStatus.has(queryCheckExecution.QueryExecution.Status.State)) {
+      console.log(`é ${++i} pápápá`)
+
+      queryCheckExecution = await db.getQueryExecution({ 
+        QueryExecutionId: queryExecution.QueryExecutionId,
+      }).promise();
+
+      await this.sleep(200);
+    }
+
+    const result = await db.getQueryResults({
+      QueryExecutionId: queryExecution.QueryExecutionId,
+    }).promise();
+
+    console.log(JSON.stringify(result))
+
+    return result;
+  }
+
+  public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
+    const result = await this.rawQuery(queries.toString());
+
+    const columns = result.ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
+    const resultSet = result.ResultSet.Rows.slice(1).map(({ Data }) => Object.assign({}, ...Data.map((column, i) => ({ [columns[i]]: column.VarCharValue }))));
+
+    const response: NSDatabase.IResult[] = [{
+      cols: columns,
+      connId: this.getId(),
+      messages: [{ date: new Date(), message: `Query ok with ${result.ResultSet.Rows.length} results`}],
+      results: resultSet,
+      query: queries.toString(),
+      requestId: opt.requestId,
+      resultId: generateId(),
+    }];
+
+    return response;
+  }
+
+  /** if you need a different way to test your connection, you can set it here.
+   * Otherwise by default we open and close the connection only
+   */
+  public async testConnection() {
+    await this.open();
+    await this.query('SELECT 1', {});
+  }
+
+  /**
+   * This method is a helper to generate the connection explorer tree.
+   * it gets the child items based on current item
+   */
+  public async getChildrenForItem({ item, parent }: Arg0<IConnectionDriver['getChildrenForItem']>) {
+    const db = await this.connection;
+
+    switch (item.type) {
+      case ContextValue.CONNECTION:
+      case ContextValue.CONNECTED_CONNECTION:
+        return <MConnectionExplorer.IChildItem[]>[
+          { label: 'Catalogs', type: ContextValue.RESOURCE_GROUP, iconId: 'folder', childType: ContextValue.SCHEMA },
+        ]
+      case ContextValue.SCHEMA:
+        return <MConnectionExplorer.IChildItem[]>[
+          { label: 'Databases', type: ContextValue.RESOURCE_GROUP, iconId: 'folder', childType: ContextValue.DATABASE },
+        ];
+      case ContextValue.DATABASE:
+        return <MConnectionExplorer.IChildItem[]>[
+          { label: 'Tables', type: ContextValue.RESOURCE_GROUP, iconId: 'folder', childType: ContextValue.TABLE },
+          { label: 'Views', type: ContextValue.RESOURCE_GROUP, iconId: 'folder', childType: ContextValue.VIEW },
+        ];
+      case ContextValue.TABLE:
+      case ContextValue.VIEW:
+        const tableMetadata = await db.getTableMetadata({
+          CatalogName: item.schema,
+          DatabaseName: item.database,
+          TableName: item.label
+        }).promise();
+
+        return [
+          ...tableMetadata.TableMetadata.Columns,
+          ...tableMetadata.TableMetadata.PartitionKeys,
+        ].map(column => ({
+          label: column.Name,
+          type: ContextValue.COLUMN,
+          dataType: column.Type,
+          schema: item.schema,
+          childType: ContextValue.NO_CHILD,
+          isNullable: true,
+          iconName: 'column',
+          table: parent,
+        }));
+      case ContextValue.RESOURCE_GROUP:
+        return this.getChildrenForGroup({ item, parent });
+    }
+    
+    return [];
+  }
+
+  /**
+   * This method is a helper to generate the connection explorer tree.
+   * It gets the child based on child types
+   */
+  private async getChildrenForGroup({ parent, item }: Arg0<IConnectionDriver['getChildrenForItem']>) {
+    console.log('group', 1, { item, parent });
+    const db = await this.connection;
+    
+    switch (item.childType) {
+      case ContextValue.SCHEMA:
+        const catalogs = await db.listDataCatalogs().promise();
+
+        return catalogs.DataCatalogsSummary.map((catalog) => ({
+          database: '',
+          label: catalog.CatalogName,
+          type: item.childType,
+          schema: catalog.CatalogName,
+          childType: ContextValue.DATABASE,
+        }));
+      case ContextValue.DATABASE:
+        const catalog = await db.listDatabases({
+          CatalogName: parent.schema,
+        }).promise();
+
+        return catalog.DatabaseList.map((database) => ({
+          database: database.Name,
+          label: database.Name,
+          type: item.childType,
+          schema: parent.schema,
+          childType: ContextValue.TABLE,
+        }));
+      case ContextValue.TABLE:
+        const tables = await this.rawQuery(`SHOW TABLES IN ${parent.database}`);
+        const views = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
+
+        console.log(JSON.stringify({tables, views}))
+
+        const viewsSet = new Set(views.ResultSet.Rows.map((row) => row.Data[0].VarCharValue));
+
+        return tables.ResultSet.Rows
+          .filter((row) => !viewsSet.has(row.Data[0].VarCharValue))
+          .map((row) => ({
+            database: parent.database,
+            label: row.Data[0].VarCharValue,
+            type: item.childType,
+            schema: parent.schema,
+            childType: ContextValue.COLUMN,
+          }));
+      case ContextValue.VIEW:
+        const views2 = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
+        
+        return views2.ResultSet.Rows.map((row) => ({
+          database: parent.database,
+          label: row.Data[0].VarCharValue,
+          type: item.childType,
+          schema: parent.schema,
+          childType: ContextValue.COLUMN,
+        }));
+    }
+    return [];
+  }
+
+  /**
+   * This method is a helper for intellisense and quick picks.
+   */
+  public async searchItems(itemType: ContextValue, search: string, _extraParams: any = {}): Promise<NSDatabase.SearchableItem[]> {
+    console.log('item', 3, { itemType, search });
+    switch (itemType) {
+      case ContextValue.TABLE:
+      case ContextValue.VIEW:
+        let j = 0;
+        return [{
+          database: 'fakedb',
+          label: `${search || 'table'}${j++}`,
+          type: itemType,
+          schema: 'fakeschema',
+          childType: ContextValue.COLUMN,
+        },{
+          database: 'fakedb',
+          label: `${search || 'table'}${j++}`,
+          type: itemType,
+          schema: 'fakeschema',
+          childType: ContextValue.COLUMN,
+        },
+        {
+          database: 'fakedb',
+          label: `${search || 'table'}${j++}`,
+          type: itemType,
+          schema: 'fakeschema',
+          childType: ContextValue.COLUMN,
+        }]
+      case ContextValue.COLUMN:
+        let i = 0;
+        return [
+          {
+            database: 'fakedb',
+            label: `${search || 'porra'}${i++}`,
+            type: ContextValue.COLUMN,
+            dataType: 'faketype',
+            schema: 'fakeschema',
+            childType: ContextValue.NO_CHILD,
+            isNullable: false,
+            iconName: 'column',
+            table: 'fakeTable'
+          },{
+            database: 'fakedb',
+            label: `${search || 'column'}${i++}`,
+            type: ContextValue.COLUMN,
+            dataType: 'faketype',
+            schema: 'fakeschema',
+            childType: ContextValue.NO_CHILD,
+            isNullable: false,
+            iconName: 'column',
+            table: 'fakeTable'
+          },{
+            database: 'fakedb',
+            label: `${search || 'column'}${i++}`,
+            type: ContextValue.COLUMN,
+            dataType: 'faketype',
+            schema: 'fakeschema',
+            childType: ContextValue.NO_CHILD,
+            isNullable: false,
+            iconName: 'column',
+            table: 'fakeTable'
+          },{
+            database: 'fakedb',
+            label: `${search || 'column'}${i++}`,
+            type: ContextValue.COLUMN,
+            dataType: 'faketype',
+            schema: 'fakeschema',
+            childType: ContextValue.NO_CHILD,
+            isNullable: false,
+            iconName: 'column',
+            table: 'fakeTable'
+          },{
+            database: 'fakedb',
+            label: `${search || 'column'}${i++}`,
+            type: ContextValue.COLUMN,
+            dataType: 'faketype',
+            schema: 'fakeschema',
+            childType: ContextValue.NO_CHILD,
+            isNullable: false,
+            iconName: 'column',
+            table: 'fakeTable'
+          }
+        ];
+    }
+    return [];
+  }
+
+  public getStaticCompletions: IConnectionDriver['getStaticCompletions'] = async () => {
+    return {};
+  }
+}

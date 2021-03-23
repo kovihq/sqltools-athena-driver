@@ -1,0 +1,49 @@
+{
+  "name": "athena",
+  "displayName": "driver.athena",
+  "description": "SQLTools AWS Athena Driver",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.42.0"
+  },
+  "publisher": "mtxr",
+  "license": "MIT",
+  "repository": {},
+  "bugs": {},
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "keywords": [
+    "athena",
+    "sqltools-driver"
+  ],
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Formatters",
+    "Other"
+  ],
+  "extensionDependencies": [
+    "mtxr.sqltools"
+  ],
+  "activationEvents": [
+    "*",
+    "onLanguage:sql",
+    "onCommand:sqltools.*"
+  ],
+  "main": "./out/extension.js",
+  "dependencies": {
+    "@sqltools/base-driver": "latest",
+    "@sqltools/types": "latest",
+    "aws-sdk": "^2.868.0",
+    "uuid": "^7.0.2"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.5.5",
+    "@types/node": "^14.0.9",
+    "@types/vscode": "^1.42.0",
+    "typescript": "^3.7.3"
+  }
+}

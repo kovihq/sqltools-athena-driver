@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "workgroup": { 
+      "title": "Workgroup",
+      "type": "string",
+      "minLength": 1
+    },
+    "accessKeyId": {
+      "title": "Access Key Id",
+      "type": "string",
+      "minLength": 1
+    },
+    "secretAccessKey": {
+      "title": "Secret Access Key",
+      "type": "string",
+      "minLength": 1
+    },
+    "region": {
+      "title": "AWS Region",
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "required": [
+    "workgroup"
+  ]
+}
