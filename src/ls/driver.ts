@@ -13,35 +13,12 @@ import { Athena } from 'aws-sdk';
  *
  * This will give you completions iside of the library
  */
-type DriverLib = typeof Athena;
-type DriverOptions = any;
-
-new Athena();
 
 /**
  * MOCKED DB DRIVER
  * THIS IS JUST AN EXAMPLE AND THE LINES BELOW SHOUDL BE REMOVED!
  */
 // import fakeDbLib from './mylib'; // this is what you should do
-const fakeDbLib = {
-  open: () => Promise.resolve(fakeDbLib),
-  query: (..._args: any[]) => {
-    const nResults = parseInt((Math.random() * 1000).toFixed(0));
-    const nCols = parseInt((Math.random() * 100).toFixed(0));
-    const colNames = [...new Array(nCols)].map((_, index) => `col${index}`);
-    const generateRow = () => {
-      const row = {};
-      colNames.forEach(c => {
-        row[c] = Math.random() * 1000;
-      });
-      return row;
-    }
-    const results = [...new Array(nResults)].map(generateRow);
-    return Promise.resolve([results]);
-  },
-  close: () => Promise.resolve(),
-};
-
 
 /* LINES ABOVE CAN BE REMOVED */
 
@@ -190,6 +167,7 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
           type: ContextValue.COLUMN,
           dataType: column.Type,
           schema: item.schema,
+          database: item.database,
           childType: ContextValue.NO_CHILD,
           isNullable: true,
           iconName: 'column',
