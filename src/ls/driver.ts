@@ -3,25 +3,6 @@ import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue 
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
 import { Athena } from 'aws-sdk';
-/**
- * set Driver lib to the type of your connection.
- * Eg for postgres:
- * import { Pool, PoolConfig } from 'pg';
- * ...
- * type DriverLib = Pool;
- * type DriverOptions = PoolConfig;
- *
- * This will give you completions iside of the library
- */
-
-/**
- * MOCKED DB DRIVER
- * THIS IS JUST AN EXAMPLE AND THE LINES BELOW SHOUDL BE REMOVED!
- */
-// import fakeDbLib from './mylib'; // this is what you should do
-
-/* LINES ABOVE CAN BE REMOVED */
-
 
 export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -80,12 +61,7 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
 
     const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
 
-    let i = 1;
-    console.log(`é ${i} pápápá`)
-
     while (!endStatus.has(queryCheckExecution.QueryExecution.Status.State)) {
-      console.log(`é ${++i} pápápá`)
-
       queryCheckExecution = await db.getQueryExecution({ 
         QueryExecutionId: queryExecution.QueryExecutionId,
       }).promise();
@@ -185,7 +161,6 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
    * It gets the child based on child types
    */
   private async getChildrenForGroup({ parent, item }: Arg0<IConnectionDriver['getChildrenForItem']>) {
-    console.log('group', 1, { item, parent });
     const db = await this.connection;
     
     switch (item.childType) {
@@ -246,7 +221,6 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
    * This method is a helper for intellisense and quick picks.
    */
   public async searchItems(itemType: ContextValue, search: string, _extraParams: any = {}): Promise<NSDatabase.SearchableItem[]> {
-    console.log('item', 3, { itemType, search });
     switch (itemType) {
       case ContextValue.TABLE:
       case ContextValue.VIEW:
