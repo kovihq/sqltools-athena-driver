@@ -1,12 +1,12 @@
 {
-  "name": "athena",
-  "displayName": "driver.athena",
+  "name": "sqltools-athena-driver",
+  "displayName": "SQLTools AWS Athena Driver",
   "description": "SQLTools AWS Athena Driver",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.42.0"
   },
-  "publisher": "mtxr",
+  "publisher": "brunoventura",
   "license": "MIT",
   "repository": {},
   "bugs": {},

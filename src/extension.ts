@@ -42,7 +42,6 @@ export async function activate(extContext: ExtensionContext): Promise<IDriverExt
   return {
     driverName,
     parseBeforeSaveConnection: ({ connInfo }) => {
-      console.log('1')
       /**
        * This hook is called before saving the connection using the assistant
        * so you can do any transformations before saving it to disk.active
@@ -60,7 +59,6 @@ export async function activate(extContext: ExtensionContext): Promise<IDriverExt
       return connInfo;
     },
     parseBeforeEditConnection: ({ connInfo }) => {
-      console.log('1')
       /**
        * This hook is called before editing the connection using the assistant
        * so you can do any transformations before editing it.
