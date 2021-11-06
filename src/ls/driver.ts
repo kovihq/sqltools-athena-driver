@@ -187,7 +187,7 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
           childType: ContextValue.TABLE,
         }));
       case ContextValue.TABLE:
-        const tables = await this.rawQuery(`SHOW TABLES IN ${parent.database}`);
+        const tables = await this.rawQuery(`SHOW TABLES IN "${parent.database}"`);
         const views = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
 
         console.log(JSON.stringify({tables, views}))
