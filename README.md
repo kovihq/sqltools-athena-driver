@@ -4,7 +4,6 @@
 
 A Visual Studio Code extension which extends the [SQLTools extension](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools), with a driver to work with AWS Athena. It supports tables and views, as well as running queries.
 
-
 ## Configuration
 
 When creating a new connection with AWS Athena, you'll be prompted to fill some authentication info.
@@ -23,12 +22,12 @@ Usually the `primary` workgroup is the one to go.
 ### AWS Region
 
 The AWS Region code where your queries should be run.
-Refer to the [AWS Region Code Table](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions)
+Refer to the [AWS Region Code Table](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).
 
 ## Usage
 
 After installing the SQLTools driver for __AWS Athena__, you will be able to create connections to AWS Athena, explore tables and views, and run queries.
-For more information on how to use SQLTools please refer to [SQLTools extension](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools)
+For more information on how to use SQLTools please refer to [SQLTools extension](https://marketplace.visualstudio.com/items?itemName=mtxr.sqltools).
 
 ## Support
 
