@@ -24,6 +24,6 @@
     }
   },
   "required": [
-    "workgroup"
+    "workgroup", "accessKeyId", "secretAccessKey", "region"
   ]
 }
