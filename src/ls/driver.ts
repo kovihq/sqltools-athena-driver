@@ -53,29 +53,31 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
       QueryString: query,
     }).promise();
 
-    let queryCheckExecution = await db.getQueryExecution({
-      QueryExecutionId: queryExecution.QueryExecutionId,
-    }).promise();
-
     const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
 
-    while (!endStatus.has(queryCheckExecution.QueryExecution.Status.State)) {
+    let queryCheckExecution;
+
+    do {
       queryCheckExecution = await db.getQueryExecution({ 
         QueryExecutionId: queryExecution.QueryExecutionId,
       }).promise();
 
       await this.sleep(200);
+    } while (!endStatus.has(queryCheckExecution.QueryExecution.Status.State))
+
+    if (queryCheckExecution.QueryExecution.Status.State === 'FAILED') {
+      throw new Error(queryCheckExecution.QueryExecution.Status.StateChangeReason)
     }
 
     const result = await db.getQueryResults({
       QueryExecutionId: queryExecution.QueryExecutionId,
     }).promise();
-
     return result;
   }
 
   public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
     const result = await this.rawQuery(queries.toString());
+
 
     const columns = result.ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
     const resultSet = result.ResultSet.Rows.slice(1).map(({ Data }) => Object.assign({}, ...Data.map((column, i) => ({ [columns[i]]: column.VarCharValue }))));
