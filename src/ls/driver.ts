@@ -42,9 +42,7 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
     return this.connection;
   }
 
-  public async close() {
-    console.log('RA RÁ')
-  }
+  public async close() { }
 
   private sleep = (time: number) => new Promise((resolve) => setTimeout(() => resolve(true), time));
 
@@ -55,7 +53,7 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
       QueryString: query,
     }).promise();
 
-    let queryCheckExecution = await db.getQueryExecution({ 
+    let queryCheckExecution = await db.getQueryExecution({
       QueryExecutionId: queryExecution.QueryExecutionId,
     }).promise();
 
@@ -72,8 +70,6 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
     const result = await db.getQueryResults({
       QueryExecutionId: queryExecution.QueryExecutionId,
     }).promise();
-
-    console.log(JSON.stringify(result))
 
     return result;
   }
@@ -187,10 +183,8 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
           childType: ContextValue.TABLE,
         }));
       case ContextValue.TABLE:
-        const tables = await this.rawQuery(`SHOW TABLES IN "${parent.database}"`);
+        const tables = await this.rawQuery(`SHOW TABLES IN \`${parent.database}\``);
         const views = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
-
-        console.log(JSON.stringify({tables, views}))
 
         const viewsSet = new Set(views.ResultSet.Rows.map((row) => row.Data[0].VarCharValue));
 
