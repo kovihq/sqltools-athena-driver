@@ -8,7 +8,11 @@
   },
   "publisher": "brunoventura",
   "license": "MIT",
-  "repository": {},
+  "icon": "icons/extension_icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kovihq/sqltools-athena-driver"
+  },
   "bugs": {},
   "scripts": {
     "vscode:prepublish": "npm run compile",
