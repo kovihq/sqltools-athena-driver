@@ -2,13 +2,17 @@
   "name": "sqltools-athena-driver",
   "displayName": "SQLTools AWS Athena Driver",
   "description": "SQLTools AWS Athena Driver",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "engines": {
     "vscode": "^1.42.0"
   },
   "publisher": "brunoventura",
   "license": "MIT",
-  "repository": {},
+  "icon": "icons/extension_icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kovihq/sqltools-athena-driver"
+  },
   "bugs": {},
   "scripts": {
     "vscode:prepublish": "npm run compile",
