@@ -23,8 +23,8 @@ ORDER BY cid ASC
 const fetchRecords: IBaseQueries['fetchRecords'] = queryFactory`
 SELECT *
 FROM ${p => (p.table.label || p.table)}
-LIMIT ${p => p.limit || 50}
-OFFSET ${p => p.offset || 0};
+OFFSET ${p => p.offset || 0}
+LIMIT ${p => p.limit || 50};
 `;
 
 const countRecords: IBaseQueries['countRecords'] = queryFactory`
