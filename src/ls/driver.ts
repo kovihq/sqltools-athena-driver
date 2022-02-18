@@ -57,6 +57,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
 
     const queryExecution = await db.startQueryExecution({
       QueryString: query,
+      WorkGroup: this.credentials.workgroup
     }).promise();
 
     const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
