@@ -31,7 +31,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       return this.connection;
     }
 
-    if (!this.credentials.profile)
+    if (this.credentials.connectionMethod !== 'Profile')
       var credentials = new Credentials({
         accessKeyId: this.credentials.accessKeyId,
         secretAccessKey: this.credentials.secretAccessKey,
