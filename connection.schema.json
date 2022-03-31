@@ -7,23 +7,66 @@
       "type": "string",
       "minLength": 1
     },
-    "accessKeyId": {
-      "title": "Access Key Id",
-      "type": "string",
-      "minLength": 1
-    },
-    "secretAccessKey": {
-      "title": "Secret Access Key",
-      "type": "string",
-      "minLength": 1
-    },
     "region": {
       "title": "AWS Region",
       "type": "string",
       "minLength": 1
+    },
+    "connectionMethod": {
+      "title": "Connect using",
+      "type": "string",
+      "minLength": 1,
+      "enum": ["Profile", "Session Credentials"],
+      "default": "Profile"
+    }
+  },
+  "dependencies": {
+    "connectionMethod": {
+      "oneOf": [
+        {
+          "properties": {
+            "connectionMethod": {
+              "enum": ["Profile"]
+            },
+            "profile": {
+              "title": "AWS Profile",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "workgroup", "profile", "region"
+          ]
+        },
+        {
+          "properties": {
+            "connectionMethod": {
+              "enum": ["Session Credentials"]
+            },
+            "accessKeyId": {
+              "title": "Access Key Id",
+              "type": "string",
+              "minLength": 1
+            },
+            "secretAccessKey": {
+              "title": "Secret Access Key",
+              "type": "string",
+              "minLength": 1
+            },
+            "sessionToken": {
+              "title": "Session Token",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "workgroup", "accessKeyId", "secretAccessKey", "region"
+          ]
+        }
+      ]
     }
   },
   "required": [
-    "workgroup", "accessKeyId", "secretAccessKey", "region"
+    "connectionMethod"
   ]
 }

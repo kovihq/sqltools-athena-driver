@@ -2,9 +2,9 @@ import AbstractDriver from '@sqltools/base-driver';
 import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue } from '@sqltools/types';
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
-import { Athena } from 'aws-sdk';
+import { Athena, Credentials, SharedIniFileCredentials } from 'aws-sdk';
 
-export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
+export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
   queries = queries
 
@@ -31,11 +31,17 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
       return this.connection;
     }
 
-    this.connection = Promise.resolve(new Athena({
-      credentials: {
+    if (this.credentials.connectionMethod !== 'Profile')
+      var credentials = new Credentials({
         accessKeyId: this.credentials.accessKeyId,
         secretAccessKey: this.credentials.secretAccessKey,
-      },
+        sessionToken: this.credentials.sessionToken,
+      });
+    else
+      var credentials = new SharedIniFileCredentials({ profile: this.credentials.profile });
+
+    this.connection = Promise.resolve(new Athena({
+      credentials: credentials,
       region: this.credentials.region || 'us-east-1',
     }));
 
@@ -51,6 +57,7 @@ export default class YourDriverClass extends AbstractDriver<Athena, Athena.Types
 
     const queryExecution = await db.startQueryExecution({
       QueryString: query,
+      WorkGroup: this.credentials.workgroup
     }).promise();
 
     const endStatus = new Set(['FAILED', 'SUCCEEDED', 'CANCELLED']);
