@@ -24,6 +24,9 @@ Usually the `primary` workgroup is the one to go.
 The AWS Region code where your queries should be run.
 Refer to the [AWS Region Code Table](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).
 
+### S3 Output Location
+The query result bucket location in Amazon S3. Required only if output location is not specified in the workgroup.
+
 ## Usage
 
 After installing the SQLTools driver for __AWS Athena__, you will be able to create connections to AWS Athena, explore tables and views, and run queries.
