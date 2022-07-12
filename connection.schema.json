@@ -18,6 +18,10 @@
       "minLength": 1,
       "enum": ["Profile", "Session Credentials"],
       "default": "Profile"
+    },
+    "outputLocation": {
+      "title": "S3 Output Location",
+      "type": "string"
     }
   },
   "dependencies": {
