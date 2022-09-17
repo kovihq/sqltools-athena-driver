@@ -2,7 +2,9 @@ import AbstractDriver from '@sqltools/base-driver';
 import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue } from '@sqltools/types';
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
-import { Athena, Credentials, SharedIniFileCredentials } from 'aws-sdk';
+import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
+import { PromiseResult } from 'aws-sdk/lib/request';
+import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -79,23 +81,49 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       throw new Error(queryCheckExecution.QueryExecution.Status.StateChangeReason)
     }
 
-    const result = await db.getQueryResults({
-      QueryExecutionId: queryExecution.QueryExecutionId,
-    }).promise();
-    return result;
+    const results: PromiseResult<GetQueryResultsOutput, AWSError>[] = [];
+    let result: PromiseResult<GetQueryResultsOutput, AWSError>;
+    let nextToken: string | null = null;
+
+    do {
+      const payload: GetQueryResultsInput = {
+        QueryExecutionId: queryExecution.QueryExecutionId
+      };
+      if (nextToken) {
+        payload.NextToken = nextToken;
+        await this.sleep(200);
+      }
+      result = await db.getQueryResults(payload).promise();
+      nextToken = result.NextToken;
+      results.push(result);
+    } while (nextToken);
+
+    return results;
   }
 
   public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
-    const result = await this.rawQuery(queries.toString());
-
-
-    const columns = result.ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
-    const resultSet = result.ResultSet.Rows.slice(1).map(({ Data }) => Object.assign({}, ...Data.map((column, i) => ({ [columns[i]]: column.VarCharValue }))));
+    const results = await this.rawQuery(queries.toString());
+    const columns = results[0].ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
+    const resultSet = [];
+    results.forEach((result, i) => {
+      const rows = result.ResultSet.Rows;
+      if (i === 0) {
+        rows.shift();
+      }
+      rows.forEach(({ Data }) => {
+        resultSet.push(
+          Object.assign(
+            {},
+            ...Data.map((column, i) => ({ [columns[i]]: column.VarCharValue }))
+          )
+        );
+      });
+    });
 
     const response: NSDatabase.IResult[] = [{
       cols: columns,
       connId: this.getId(),
-      messages: [{ date: new Date(), message: `Query ok with ${result.ResultSet.Rows.length} results`}],
+      messages: [{ date: new Date(), message: `Query ok with ${resultSet.length} results`}],
       results: resultSet,
       query: queries.toString(),
       requestId: opt.requestId,
@@ -198,9 +226,9 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
         const tables = await this.rawQuery(`SHOW TABLES IN \`${parent.database}\``);
         const views = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
 
-        const viewsSet = new Set(views.ResultSet.Rows.map((row) => row.Data[0].VarCharValue));
+        const viewsSet = new Set(views[0].ResultSet.Rows.map((row) => row.Data[0].VarCharValue));
 
-        return tables.ResultSet.Rows
+        return tables[0].ResultSet.Rows
           .filter((row) => !viewsSet.has(row.Data[0].VarCharValue))
           .map((row) => ({
             database: parent.database,
@@ -212,7 +240,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       case ContextValue.VIEW:
         const views2 = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
         
-        return views2.ResultSet.Rows.map((row) => ({
+        return views2[0].ResultSet.Rows.map((row) => ({
           database: parent.database,
           label: row.Data[0].VarCharValue,
           type: item.childType,
