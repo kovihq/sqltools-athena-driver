@@ -4,33 +4,36 @@ import queryFactory from '@sqltools/base-driver/dist/lib/factory';
 /** write your queries here go fetch desired data. This queries are just examples copied from SQLite driver */
 
 const describeTable: IBaseQueries['describeTable'] = queryFactory`
-  SELECT C.*
-  FROM pragma_table_info('${p => p.label}') AS C
-  ORDER BY C.cid ASC
+  SELECT *
+  FROM information_schema.columns
+  WHERE table_catalog = '${p => p.schema.toLowerCase()}'
+  AND table_schema = '${p => p.database.toLowerCase()}'
+  AND table_name = '${p => p.label.toLowerCase()}'
 `;
 
 const fetchColumns: IBaseQueries['fetchColumns'] = queryFactory`
-SELECT C.name AS label,
-  C.*,
-  C.type AS dataType,
-  C."notnull" AS isNullable,
-  C.pk AS isPk,
-  '${ContextValue.COLUMN}' as type
-FROM pragma_table_info('${p => p.label}') AS C
-ORDER BY cid ASC
+SELECT *
+FROM information_schema.columns
+WHERE table_catalog = '${p => p.schema.toLowerCase()}'
+AND table_schema = '${p => p.database.toLowerCase()}'
+AND table_name = '${p => p.label.toLowerCase()}'
 `;
 
 const fetchRecords: IBaseQueries['fetchRecords'] = queryFactory`
 SELECT *
-FROM ${p => (p.table.label || p.table)}
+FROM ${p => mountTableName(p)}
 OFFSET ${p => p.offset || 0}
 LIMIT ${p => p.limit || 50};
 `;
 
 const countRecords: IBaseQueries['countRecords'] = queryFactory`
 SELECT count(1) AS total
-FROM ${p => (p.table.label || p.table)};
+FROM ${p => mountTableName(p)};
 `;
+
+const mountTableName = (context): string => {
+  return `${context.table.schema}.${context.table.database}.${context.table.label}`
+}
 
 const fetchTablesAndViews = (type: ContextValue, tableType = 'table'): IBaseQueries['fetchTables'] => queryFactory`
 SELECT name AS label,
