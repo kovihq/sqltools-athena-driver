@@ -16,7 +16,7 @@
       "title": "Connect using",
       "type": "string",
       "minLength": 1,
-      "enum": ["Profile", "Session Credentials"],
+      "enum": ["Profile", "Session Credentials", "Profile Credential Process"],
       "default": "Profile"
     },
     "outputLocation": {
@@ -30,7 +30,7 @@
         {
           "properties": {
             "connectionMethod": {
-              "enum": ["Profile"]
+              "enum": ["Profile", "Profile Credential Process"]
             },
             "profile": {
               "title": "AWS Profile",

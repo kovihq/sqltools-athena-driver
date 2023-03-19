@@ -1,8 +1,9 @@
+import AWS from 'aws-sdk';
 import AbstractDriver from '@sqltools/base-driver';
 import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue } from '@sqltools/types';
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
-import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
+import { Athena, AWSError, Credentials, SharedIniFileCredentials, ProcessCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
 
@@ -33,19 +34,26 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       return this.connection;
     }
 
-    if (this.credentials.connectionMethod !== 'Profile')
-      var credentials = new Credentials({
+    let credentials;
+
+    if (this.credentials.connectionMethod === 'Profile') {
+      credentials = new SharedIniFileCredentials({ profile: this.credentials.profile });
+    } else if (this.credentials.connectionMethod === 'Profile Credential Process') {
+      credentials = new ProcessCredentials({ profile: this.credentials.profile });
+    } else {
+      credentials = new Credentials({
         accessKeyId: this.credentials.accessKeyId,
         secretAccessKey: this.credentials.secretAccessKey,
         sessionToken: this.credentials.sessionToken,
       });
-    else
-      var credentials = new SharedIniFileCredentials({ profile: this.credentials.profile });
+    }
 
-    this.connection = Promise.resolve(new Athena({
-      credentials: credentials,
-      region: this.credentials.region || 'us-east-1',
-    }));
+    this.connection = Promise.resolve(
+      new AWS.Athena({
+        credentials: credentials,
+        region: this.credentials.region || 'us-east-1',
+      })
+    );
 
     return this.connection;
   }
