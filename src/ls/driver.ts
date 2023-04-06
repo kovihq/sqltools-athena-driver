@@ -211,17 +211,33 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           childType: ContextValue.DATABASE,
         }));
       case ContextValue.DATABASE:
-        const catalog = await db.listDatabases({
-          CatalogName: parent.schema,
-        }).promise();
+        let databaseList = [];          
+        let firstBatch:boolean = true;
+        let nextToken:string|null = null;
+        
+        while (firstBatch == true || nextToken !== null) {
+          firstBatch = false;
+          let listDbRequest = {
+            CatalogName: parent.schema,
+          }
+          if (nextToken !== null) {
+            Object.assign(listDbRequest, {
+              NextToken: nextToken,
+            });
+          }
+          const catalog = await db.listDatabases(listDbRequest).promise();
+          nextToken = 'NextToken' in catalog ? catalog.NextToken : null;
 
-        return catalog.DatabaseList.map((database) => ({
-          database: database.Name,
-          label: database.Name,
-          type: item.childType,
-          schema: parent.schema,
-          childType: ContextValue.TABLE,
-        }));
+          databaseList = databaseList.concat(
+            catalog.DatabaseList.map((database) => ({
+              database: database.Name,
+              label: database.Name,
+              type: item.childType,
+              schema: parent.schema,
+              childType: ContextValue.TABLE,
+            })));
+        }
+        return databaseList;
       case ContextValue.TABLE:
         const tables = await this.rawQuery(`SHOW TABLES IN \`${parent.database}\``);
         const views = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
