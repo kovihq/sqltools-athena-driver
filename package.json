@@ -41,7 +41,7 @@
   "dependencies": {
     "@sqltools/base-driver": "latest",
     "@sqltools/types": "latest",
-    "aws-sdk": "^2.869.0",
+    "aws-sdk": "^2.1354.0",
     "uuid": "^7.0.3"
   },
   "devDependencies": {
