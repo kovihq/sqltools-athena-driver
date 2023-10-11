@@ -5,11 +5,13 @@
     "workgroup": { 
       "title": "Workgroup",
       "type": "string",
+      "default": "primary",
       "minLength": 1
     },
     "region": {
       "title": "AWS Region",
       "type": "string",
+      "default": "us-east-1",
       "minLength": 1
     },
     "connectionMethod": {

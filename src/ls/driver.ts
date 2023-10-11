@@ -156,7 +156,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
         ]
       case ContextValue.SCHEMA:
         return <MConnectionExplorer.IChildItem[]>[
-          { label: 'Databases', type: ContextValue.RESOURCE_GROUP, iconId: 'folder', childType: ContextValue.DATABASE },
+          { label: 'Databases', type: ContextValue.RESOURCE_GROUP, iconId: 'group-by-ref-type', childType: ContextValue.DATABASE },
         ];
       case ContextValue.DATABASE:
         return <MConnectionExplorer.IChildItem[]>[
@@ -171,20 +171,23 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           TableName: item.label
         }).promise();
 
-        return [
+        let to_return = [
           ...tableMetadata.TableMetadata.Columns,
           ...tableMetadata.TableMetadata.PartitionKeys,
         ].map(column => ({
           label: column.Name,
           type: ContextValue.COLUMN,
           dataType: column.Type,
+          detail: `${column.Type}${column.Comment ? ` - ${column.Comment}` : ''}`,
           schema: item.schema,
           database: item.database,
           childType: ContextValue.NO_CHILD,
           isNullable: true,
-          iconName: 'column',
+          iconName: column.Name.toLowerCase() === 'id' ? 'pk' : 'column',
           table: parent,
         }));
+        console.log(to_return);
+        return to_return;
       case ContextValue.RESOURCE_GROUP:
         return this.getChildrenForGroup({ item, parent });
     }
@@ -231,6 +234,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           databaseList = databaseList.concat(
             catalog.DatabaseList.map((database) => ({
               database: database.Name,
+              detail: database.Description,
               label: database.Name,
               type: item.childType,
               schema: parent.schema,
