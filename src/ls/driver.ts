@@ -281,6 +281,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
    * This method is a helper for intellisense and quick picks.
    */
   public async searchItems(itemType: ContextValue, search: string, _extraParams: any = {}): Promise<NSDatabase.SearchableItem[]> {
+    const db = await this.connection;
     switch (itemType) {
       case ContextValue.DATABASE:
         console.log('database search');
@@ -319,49 +320,40 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           childType: ContextValue.COLUMN,
         }]
       case ContextValue.COLUMN:
-        console.log('column search');
-        const tableNames = [];
-        const databases = [];
-        _extraParams.tables.forEach((t) => {
-          if (t.label) {
-            tableNames.push(t.label);
-          }
-          if (t.database) {
-            databases.push(t.database);
-          }
-        })
-        const sql = `
-        SELECT
-        table_name
-        , table_schema
-        , column_name
-        , data_type
-        , is_nullable = 'YES' is_nullable
-        FROM INFORMATION_SCHEMA.columns
-        WHERE 1=1
-        ${databases.length ? `AND LOWER(table_schema) IN (${databases.map(d => `'${d}'`.toLowerCase()).join(', ')})` : ''} 
-        ${tableNames.length ? `AND LOWER(table_name) IN (${tableNames.map(t => `'${t}'`.toLowerCase()).join(', ')})` : ''}
-        ${search ? `AND LOWER(column_name) LIKE '%${search.toLowerCase()}%'` : ''}
-        ORDER BY column_name
-        `;
-        console.log(sql);
+        const tables = _extraParams.tables.filter(t => t.database);
 
-        const columns = await this.rawQuery(sql);
+        const columns = [];
+        for await (const table of tables) {
+          var params = {
+            CatalogName: 'AwsDataCatalog',
+            DatabaseName: table.database,
+            TableName: table.label
+          };
 
-        return columns[0].ResultSet.Rows.map((row) => ({
-          database: row.Data[1].VarCharValue,
-          label: row.Data[2].VarCharValue,
-          type: itemType,
-          schema: row.Data[1].VarCharValue,
-          dataType: row.Data[3].VarCharValue,
-          childType: ContextValue.NO_CHILD,
-          isNullable: row.Data[4].VarCharValue,
-          iconName: 'column',
-          table: row.Data[0].VarCharValue
-        }))
+          await db.getTableMetadata(params, function(err, data) {
+            if (err) {
+              console.log(err);
+            }
+            
+            data.TableMetadata.Columns.map((col) => {
+              columns.push({
+                database: table.database,
+                label: col.Name,
+                type: itemType,
+                schema: table.database,
+                dataType: col.Type,
+                childType: ContextValue.NO_CHILD,
+                isNullable: true,
+                iconName: 'column',
+                table: table.label
+              })
+            })
+          }).promise()
+        }
+        return columns;
     }
-    return [];
-  }
+    return []
+}
 
   public getStaticCompletions: IConnectionDriver['getStaticCompletions'] = async () => {
     return {};
