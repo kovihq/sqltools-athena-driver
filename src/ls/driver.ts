@@ -5,6 +5,7 @@ import { v4 as generateId } from 'uuid';
 import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
+// import { ExtensionContext } from 'vscode';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -29,7 +30,12 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
   // }
 
   public async open() {
-    if (this.connection) {
+    // const vscode = require('vscode');
+    // vscode.
+    // const versionKey = 'shown.version';
+    // ExtensionContext.
+    // context.globalState.setKeysForSync([versionKey]);
+    if (this.connection) { 
       return this.connection;
     }
 
@@ -276,8 +282,21 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
    */
   public async searchItems(itemType: ContextValue, search: string, _extraParams: any = {}): Promise<NSDatabase.SearchableItem[]> {
     switch (itemType) {
+      case ContextValue.DATABASE:
+        console.log('database search');
+        return [{
+          database: 'searching for databases',
+          label: search || 'table',
+          type: itemType,
+          schema: 'fakeschema',
+          childType: ContextValue.COLUMN,
+        }]
       case ContextValue.TABLE:
+        console.log('table search');
+        console.log(`database: ${_extraParams.database}`);
+        return []
       case ContextValue.VIEW:
+        console.log('view search');
         let j = 0;
         return [{
           database: 'fakedb',
@@ -300,60 +319,46 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           childType: ContextValue.COLUMN,
         }]
       case ContextValue.COLUMN:
-        let i = 0;
-        return [
-          {
-            database: 'fakedb',
-            label: `${search || 'porra'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          },{
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          },{
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          },{
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
-          },{
-            database: 'fakedb',
-            label: `${search || 'column'}${i++}`,
-            type: ContextValue.COLUMN,
-            dataType: 'faketype',
-            schema: 'fakeschema',
-            childType: ContextValue.NO_CHILD,
-            isNullable: false,
-            iconName: 'column',
-            table: 'fakeTable'
+        console.log('column search');
+        const tableNames = [];
+        const databases = [];
+        _extraParams.tables.forEach((t) => {
+          if (t.label) {
+            tableNames.push(t.label);
           }
-        ];
+          if (t.database) {
+            databases.push(t.database);
+          }
+        })
+        const sql = `
+        SELECT
+        table_name
+        , table_schema
+        , column_name
+        , data_type
+        , is_nullable = 'YES' is_nullable
+        FROM INFORMATION_SCHEMA.columns
+        WHERE 1=1
+        ${databases.length ? `AND LOWER(table_schema) IN (${databases.map(d => `'${d}'`.toLowerCase()).join(', ')})` : ''} 
+        ${tableNames.length ? `AND LOWER(table_name) IN (${tableNames.map(t => `'${t}'`.toLowerCase()).join(', ')})` : ''}
+        ${search ? `AND LOWER(column_name) LIKE '%${search.toLowerCase()}%'` : ''}
+        ORDER BY column_name
+        `;
+        console.log(sql);
+
+        const columns = await this.rawQuery(sql);
+
+        return columns[0].ResultSet.Rows.map((row) => ({
+          database: row.Data[1].VarCharValue,
+          label: row.Data[2].VarCharValue,
+          type: itemType,
+          schema: row.Data[1].VarCharValue,
+          dataType: row.Data[3].VarCharValue,
+          childType: ContextValue.NO_CHILD,
+          isNullable: row.Data[4].VarCharValue,
+          iconName: 'column',
+          table: row.Data[0].VarCharValue
+        }))
     }
     return [];
   }
