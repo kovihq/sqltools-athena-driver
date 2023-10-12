@@ -284,18 +284,88 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     const db = await this.connection;
     switch (itemType) {
       case ContextValue.DATABASE:
-        console.log('database search');
-        return [{
-          database: 'searching for databases',
-          label: search || 'table',
-          type: itemType,
-          schema: 'fakeschema',
-          childType: ContextValue.COLUMN,
-        }]
+        var dbNextToken = null;
+        var dbFirstBatch = true;
+        const dbOutput = [];
+
+        while (dbFirstBatch == true || dbNextToken != null) {
+          dbFirstBatch = false
+          var dbParams = {
+            CatalogName: 'AwsDataCatalog',
+            MaxResults: 50
+          };
+          if (dbNextToken != null) {
+            Object.assign(dbParams, {
+              NextToken: dbNextToken
+            })
+          }
+          
+          await db.listDatabases(dbParams, function(err, data) {
+            if (err) {
+              console.log(err);
+            }
+
+            if (data != null) {
+              data.DatabaseList.forEach((db) => {
+                dbOutput.push({
+                  database: db.Name,
+                  label: db.Name,
+                  type: itemType,
+                  schema: db.Name
+                })
+              })
+              dbNextToken = data.NextToken;
+            }
+          }).promise();
+        }
+        return dbOutput
+
       case ContextValue.TABLE:
-        console.log('table search');
-        console.log(`database: ${_extraParams.database}`);
-        return []
+        const database = _extraParams.database;
+        if (!database) {
+          return []
+        }
+
+        var tableNextToken = null;
+        var tableFirstBatch = true;
+        var tableOutput = [];
+
+        while (tableFirstBatch == true || tableNextToken != null) {
+          tableFirstBatch = false
+          var tableParams = {
+            CatalogName: 'AwsDataCatalog',
+            DatabaseName: database,
+            // Expression: `^.*${search.toLowerCase()}.*$`
+          };
+          if (tableNextToken != null) {
+            Object.assign(tableParams, {
+              NextToken: tableNextToken
+            })
+          }
+          
+          await db.listTableMetadata(tableParams, function(err, data) {
+            if (err) {
+              console.log(err);
+            }
+  
+            if (data != null) {
+              if (data.TableMetadataList) {
+                data.TableMetadataList.forEach((table) => {
+                  tableOutput.push({
+                    database: database,
+                    label: table.Name,
+                    type: itemType,
+                    schema: database
+                  })
+                })
+              }
+              tableNextToken = data.NextToken;
+            }
+          }).promise();
+        }
+        // tableOutput = tableOutput.filter(t => t.label.includes(search.toLowerCase()))
+        return tableOutput
+
       case ContextValue.VIEW:
         console.log('view search');
         let j = 0;
@@ -319,12 +389,13 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           schema: 'fakeschema',
           childType: ContextValue.COLUMN,
         }]
+        
       case ContextValue.COLUMN:
         const tables = _extraParams.tables.filter(t => t.database);
 
         const columns = [];
         for await (const table of tables) {
-          var params = {
+          const params = {
             CatalogName: 'AwsDataCatalog',
             DatabaseName: table.database,
             TableName: table.label
@@ -334,20 +405,22 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             if (err) {
               console.log(err);
             }
-            
-            data.TableMetadata.Columns.map((col) => {
-              columns.push({
-                database: table.database,
-                label: col.Name,
-                type: itemType,
-                schema: table.database,
-                dataType: col.Type,
-                childType: ContextValue.NO_CHILD,
-                isNullable: true,
-                iconName: 'column',
-                table: table.label
+
+            if (data != null) {
+              data.TableMetadata.Columns.forEach((col) => {
+                columns.push({
+                  database: table.database,
+                  label: col.Name,
+                  type: itemType,
+                  schema: table.database,
+                  dataType: col.Type,
+                  childType: ContextValue.NO_CHILD,
+                  isNullable: true,
+                  iconName: 'column',
+                  table: table.label
+                })
               })
-            })
+            }
           }).promise()
         }
         return columns;
