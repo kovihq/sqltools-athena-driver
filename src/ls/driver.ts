@@ -299,7 +299,8 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       case ContextValue.DATABASE:
         const dbOutput: NSDatabase.SearchableItem[] = [];
         var dbNextToken = 'first';
-
+        const uniqueDbs = {};
+        
         while (dbNextToken == 'first' || dbNextToken != null) {
           const dbParams: AWS.Glue.GetDatabasesRequest = {
             MaxResults: 100
@@ -311,18 +312,24 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           await glue.getDatabases(dbParams, function(err, data) {
             if (err) console.log(err, err.stack);
             else {
-              for (const db of data.DatabaseList) {
-                const dbDetails: NSDatabase.IDatabase = {
-                  database: db.Name,
-                  label: db.Name,
-                  type: itemType,
-                  schema: db.Name
+              if (data.DatabaseList) {
+                for (const db of data.DatabaseList) {
+                  const dbDetails: NSDatabase.IDatabase = {
+                    database: db.Name,
+                    label: db.Name,
+                    type: itemType,
+                    schema: db.Name
+                  }
+                  uniqueDbs[db.Name] = dbDetails
                 }
-                dbOutput.push(dbDetails);
+                dbNextToken = data.NextToken;
               }
-              dbNextToken = data.NextToken;
             }
           }).promise();
+        }
+
+        for (const i in uniqueDbs) {
+          dbOutput.push(uniqueDbs[i])
         }
 
         return dbOutput;
@@ -332,57 +339,15 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
         if (!database) {
           return [];
         }
-        const tblParams: AWS.Glue.GetTablesRequest = {
-          DatabaseName: database,
-          // MaxResults: 10
-        }
-        // if (search) {
-        //   tblParams.Expression = `^.*${search.toLowerCase()}.*$`;
-        // }
-        
-        const tblOutput: NSDatabase.SearchableItem[] = [];
-        await glue.getTables(tblParams, function(err, data) {
-          if (err) console.log(err, err.stack);
-          else {
-            for (const table of data.TableList) {
-              const tblDetails: NSDatabase.ITable = {
-                type: itemType,
-                isView: table.TableType == 'VIRTUAL_VIEW',
-                label: table.Name,
-                schema: database,
-                database: database
-              };
-              tblOutput.push(tblDetails);
-            }
-          }
-        }).promise();
-        // var tblNextToken = 'first';
 
-        // while (tblNextToken == 'first' || tblNextToken != null) {
-        //   const tblParams: AWS.Glue.GetTablesRequest = {
-        //     DatabaseName: database,
-        //     Expression: `^.*${search.toLowerCase()}.*$`,
-        //     // MaxResults: 5
-        //   }
-        //   if (tblNextToken != 'first') {
-        //     tblParams.NextToken = tblNextToken;
-        //   }
-        //   await glue.getTables(tblParams, function(err, data) {
-        //     if (err) console.log(err, err.stack);
-        //     else {
-        //       for (const table of data.TableList) {
-        //         tblOutput.push({
-        //           database: database,
-        //           label: table.Name,
-        //           type: itemType,
-        //           schema: database
-        //         });
-        //       }
-        //       tblNextToken = data.NextToken;
-        //     }
-        //   }).promise();
-        // }
-        return tblOutput;
+        const tableResults = await this.rawQuery(`SHOW TABLES IN ${database}`);
+        return tableResults[0].ResultSet.Rows
+          .map((row) => ({
+            database: database,
+            label: row.Data[0].VarCharValue,
+            type: itemType,
+            schema: database
+          }));
 
       case ContextValue.VIEW:
         console.log('view search');
@@ -422,21 +387,23 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           await db.getTableMetadata(params, function(err, data) {
             if (err) {
               console.log(err);
-            }
-
-            for (const col of data.TableMetadata.Columns) {
-              const colDetails: NSDatabase.IColumn = {
-                database: table.database,
-                label: col.Name,
-                type: itemType,
-                schema: table.database,
-                dataType: col.Type,
-                childType: ContextValue.NO_CHILD,
-                isNullable: true,
-                iconName: 'column',
-                table: table.label
+            } else {
+              if (data.TableMetadata.Columns) {
+                for (const col of data.TableMetadata.Columns) {
+                  const colDetails: NSDatabase.IColumn = {
+                    database: table.database,
+                    label: col.Name,
+                    type: itemType,
+                    schema: table.database,
+                    dataType: col.Type,
+                    childType: ContextValue.NO_CHILD,
+                    isNullable: true,
+                    iconName: 'column',
+                    table: table.label
+                  }
+                  columns.push(colDetails);
+                }
               }
-              columns.push(colDetails);
             }
           }).promise();
         }
