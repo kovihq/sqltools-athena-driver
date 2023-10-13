@@ -2,7 +2,7 @@ import AbstractDriver from '@sqltools/base-driver';
 import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue } from '@sqltools/types';
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
-import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
+import { Athena, AWSError, Credentials, Glue, SharedIniFileCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
 // import { ExtensionContext } from 'vscode';
@@ -282,89 +282,105 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
    */
   public async searchItems(itemType: ContextValue, search: string, _extraParams: any = {}): Promise<NSDatabase.SearchableItem[]> {
     const db = await this.connection;
+    if (this.credentials.connectionMethod !== 'Profile')
+      var credentials = new Credentials({
+        accessKeyId: this.credentials.accessKeyId,
+        secretAccessKey: this.credentials.secretAccessKey,
+        sessionToken: this.credentials.sessionToken,
+      });
+    else
+      var credentials = new SharedIniFileCredentials({ profile: this.credentials.profile });
+    const glueCon = Promise.resolve(new Glue({
+      credentials: credentials,
+      region: this.credentials.region || 'us-east-1',
+    }));
+    const glue = await glueCon;
+
     switch (itemType) {
       case ContextValue.DATABASE:
-        var dbNextToken = null;
-        var dbFirstBatch = true;
         const dbOutput = [];
+        var dbNextToken = 'first';
 
-        while (dbFirstBatch == true || dbNextToken != null) {
-          dbFirstBatch = false
-          var dbParams = {
-            CatalogName: 'AwsDataCatalog',
-            MaxResults: 50
-          };
-          if (dbNextToken != null) {
-            Object.assign(dbParams, {
-              NextToken: dbNextToken
-            })
+        while (dbNextToken == 'first' || dbNextToken != null) {
+          const dbParams: AWS.Glue.GetDatabasesRequest = {
+            MaxResults: 100
+          }
+          if (dbNextToken != 'first') {
+            dbParams.NextToken = dbNextToken;
           }
           
-          await db.listDatabases(dbParams, function(err, data) {
-            if (err) {
-              console.log(err);
-            }
-
-            if (data != null) {
-              data.DatabaseList.forEach((db) => {
+          await glue.getDatabases(dbParams, function(err, data) {
+            if (err) console.log(err, err.stack);
+            else {
+              for (const db of data.DatabaseList) {
                 dbOutput.push({
                   database: db.Name,
                   label: db.Name,
                   type: itemType,
                   schema: db.Name
-                })
-              })
+                });
+              }
               dbNextToken = data.NextToken;
             }
           }).promise();
         }
-        return dbOutput
+
+        return dbOutput;
 
       case ContextValue.TABLE:
         const database = _extraParams.database;
         if (!database) {
-          return []
+          return [];
         }
+        const tblParams: AWS.Glue.GetTablesRequest = {
+          DatabaseName: database,
+          MaxResults: 10
+        }
+        // if (search) {
+        //   tblParams.Expression = `^.*${search.toLowerCase()}.*$`;
+        // }
 
-        var tableNextToken = null;
-        var tableFirstBatch = true;
-        var tableOutput = [];
-
-        while (tableFirstBatch == true || tableNextToken != null) {
-          tableFirstBatch = false
-          var tableParams = {
-            CatalogName: 'AwsDataCatalog',
-            DatabaseName: database,
-            // Expression: `^.*${search.toLowerCase()}.*$`
-          };
-          if (tableNextToken != null) {
-            Object.assign(tableParams, {
-              NextToken: tableNextToken
-            })
+        const tblOutput = [];
+        await glue.getTables(tblParams, function(err, data) {
+          if (err) console.log(err, err.stack);
+          else {
+            for (const table of data.TableList) {
+              tblOutput.push({
+                database: database,
+                label: table.Name,
+                type: itemType,
+                schema: database
+              });
+            }
           }
-          
-          await db.listTableMetadata(tableParams, function(err, data) {
-            if (err) {
-              console.log(err);
-            }
-  
-            if (data != null) {
-              if (data.TableMetadataList) {
-                data.TableMetadataList.forEach((table) => {
-                  tableOutput.push({
-                    database: database,
-                    label: table.Name,
-                    type: itemType,
-                    schema: database
-                  })
-                })
-              }
-              tableNextToken = data.NextToken;
-            }
-          }).promise();
-        }
-        // tableOutput = tableOutput.filter(t => t.label.includes(search.toLowerCase()))
-        return tableOutput
+        }).promise();
+        // var tblNextToken = 'first';
+
+        // while (tblNextToken == 'first' || tblNextToken != null) {
+        //   const tblParams: AWS.Glue.GetTablesRequest = {
+        //     DatabaseName: database,
+        //     Expression: `^.*${search.toLowerCase()}.*$`,
+        //     // MaxResults: 5
+        //   }
+        //   if (tblNextToken != 'first') {
+        //     tblParams.NextToken = tblNextToken;
+        //   }
+        //   await glue.getTables(tblParams, function(err, data) {
+        //     if (err) console.log(err, err.stack);
+        //     else {
+        //       for (const table of data.TableList) {
+        //         tblOutput.push({
+        //           database: database,
+        //           label: table.Name,
+        //           type: itemType,
+        //           schema: database
+        //         });
+        //       }
+        //       tblNextToken = data.NextToken;
+        //     }
+        //   }).promise();
+        // }
+        return tblOutput;
 
       case ContextValue.VIEW:
         console.log('view search');
@@ -406,26 +422,24 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
               console.log(err);
             }
 
-            if (data != null) {
-              data.TableMetadata.Columns.forEach((col) => {
-                columns.push({
-                  database: table.database,
-                  label: col.Name,
-                  type: itemType,
-                  schema: table.database,
-                  dataType: col.Type,
-                  childType: ContextValue.NO_CHILD,
-                  isNullable: true,
-                  iconName: 'column',
-                  table: table.label
-                })
+            for (const col of data.TableMetadata.Columns) {
+              columns.push({
+                database: table.database,
+                label: col.Name,
+                type: itemType,
+                schema: table.database,
+                dataType: col.Type,
+                childType: ContextValue.NO_CHILD,
+                isNullable: true,
+                iconName: 'column',
+                table: table.label
               })
             }
           }).promise()
         }
         return columns;
     }
-    return []
+    return [];
 }
 
   public getStaticCompletions: IConnectionDriver['getStaticCompletions'] = async () => {
