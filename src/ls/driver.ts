@@ -29,11 +29,6 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
   // }
 
   public async open() {
-    // const vscode = require('vscode');
-    // vscode.
-    // const versionKey = 'shown.version';
-    // ExtensionContext.
-    // context.globalState.setKeysForSync([versionKey]);
     if (this.connection) { 
       return this.connection;
     }
