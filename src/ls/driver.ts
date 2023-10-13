@@ -5,7 +5,6 @@ import { v4 as generateId } from 'uuid';
 import { Athena, AWSError, Credentials, Glue, SharedIniFileCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
-// import { ExtensionContext } from 'vscode';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -298,7 +297,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
 
     switch (itemType) {
       case ContextValue.DATABASE:
-        const dbOutput = [];
+        const dbOutput: NSDatabase.SearchableItem[] = [];
         var dbNextToken = 'first';
 
         while (dbNextToken == 'first' || dbNextToken != null) {
@@ -313,12 +312,13 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             if (err) console.log(err, err.stack);
             else {
               for (const db of data.DatabaseList) {
-                dbOutput.push({
+                const dbDetails: NSDatabase.IDatabase = {
                   database: db.Name,
                   label: db.Name,
                   type: itemType,
                   schema: db.Name
-                });
+                }
+                dbOutput.push(dbDetails);
               }
               dbNextToken = data.NextToken;
             }
@@ -334,23 +334,25 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
         }
         const tblParams: AWS.Glue.GetTablesRequest = {
           DatabaseName: database,
-          MaxResults: 10
+          // MaxResults: 10
         }
         // if (search) {
         //   tblParams.Expression = `^.*${search.toLowerCase()}.*$`;
         // }
-
-        const tblOutput = [];
+        
+        const tblOutput: NSDatabase.SearchableItem[] = [];
         await glue.getTables(tblParams, function(err, data) {
           if (err) console.log(err, err.stack);
           else {
             for (const table of data.TableList) {
-              tblOutput.push({
-                database: database,
-                label: table.Name,
+              const tblDetails: NSDatabase.ITable = {
                 type: itemType,
-                schema: database
-              });
+                isView: table.TableType == 'VIRTUAL_VIEW',
+                label: table.Name,
+                schema: database,
+                database: database
+              };
+              tblOutput.push(tblDetails);
             }
           }
         }).promise();
@@ -409,9 +411,9 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       case ContextValue.COLUMN:
         const tables = _extraParams.tables.filter(t => t.database);
 
-        const columns = [];
+        const columns: NSDatabase.SearchableItem[] = [];
         for await (const table of tables) {
-          const params = {
+          const params: AWS.Athena.GetTableMetadataInput = {
             CatalogName: 'AwsDataCatalog',
             DatabaseName: table.database,
             TableName: table.label
@@ -423,7 +425,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
             }
 
             for (const col of data.TableMetadata.Columns) {
-              columns.push({
+              const colDetails: NSDatabase.IColumn = {
                 database: table.database,
                 label: col.Name,
                 type: itemType,
@@ -433,9 +435,10 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
                 isNullable: true,
                 iconName: 'column',
                 table: table.label
-              })
+              }
+              columns.push(colDetails);
             }
-          }).promise()
+          }).promise();
         }
         return columns;
     }
