@@ -5,6 +5,7 @@ import { v4 as generateId } from 'uuid';
 import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
+import { json } from 'stream/consumers';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -27,6 +28,8 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
   // private get lib() {
   //   return this.requireDep('node-packge-name') as DriverLib;
   // }
+  
+
 
   public async open() {
     if (this.connection) {
@@ -69,10 +72,29 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
 
     let queryCheckExecution;
 
+    let formatBytes = (bytes: number, decimals: number = 2) => {
+        if (!+bytes) return '0 Bytes'
+    
+        const k = 1024
+        const dm = decimals < 0 ? 0 : decimals
+        const sizes = ['Bytes', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+    
+        const i = Math.floor(Math.log(bytes) / Math.log(k))
+    
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+    }
+
     do {
-      queryCheckExecution = await db.getQueryExecution({ 
-        QueryExecutionId: queryExecution.QueryExecutionId,
-      }).promise();
+        queryCheckExecution = await db.getQueryExecution({ 
+            QueryExecutionId: queryExecution.QueryExecutionId,
+        }).promise();
+        
+        console.log(
+            `Query ${queryExecution.QueryExecutionId} ` +
+            `is ${queryCheckExecution.QueryExecution.Status.State} ` +
+            `${queryCheckExecution.QueryExecution.Statistics?.TotalExecutionTimeInMillis} ms elapsed. ` +
+            `${formatBytes(queryCheckExecution.QueryExecution.Statistics?.DataScannedInBytes)} scanned`
+        );
 
       await this.sleep(200);
     } while (!endStatus.has(queryCheckExecution.QueryExecution.Status.State))
