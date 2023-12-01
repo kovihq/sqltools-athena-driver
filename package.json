@@ -57,7 +57,7 @@
     "@sqltools/base-driver": "^0.1.11",
     "@types/mocha": "^10.0.3",
     "@types/node": "18.x",
-    "@types/vscode": "latest",
+    "@types/vscode": "^1.84.2",
     "@typescript-eslint/eslint-plugin": "^6.9.0",
     "@typescript-eslint/parser": "^6.9.0",
     "@vscode/test-electron": "^2.3.6",

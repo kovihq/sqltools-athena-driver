@@ -5,7 +5,6 @@ import { v4 as generateId } from 'uuid';
 import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
-import { json } from 'stream/consumers';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
