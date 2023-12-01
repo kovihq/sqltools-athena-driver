@@ -5,6 +5,7 @@ import { v4 as generateId } from 'uuid';
 import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
+import { json } from 'stream/consumers';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -27,6 +28,8 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
   // private get lib() {
   //   return this.requireDep('node-packge-name') as DriverLib;
   // }
+  
+
 
   public async open() {
     if (this.connection) {
@@ -49,6 +52,17 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
 
     return this.connection;
   }
+    private formatBytes = (bytes: number, decimals: number = 2) => {
+      if (!+bytes) return '0 Bytes'
+
+      const k = 1024
+      const dm = decimals < 0 ? 0 : decimals
+      const sizes = ['Bytes', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB', 'EiB', 'ZiB', 'YiB']
+
+      const i = Math.floor(Math.log(bytes) / Math.log(k))
+
+      return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`
+  }
 
   public async close() { }
 
@@ -70,9 +84,16 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     let queryCheckExecution;
 
     do {
-      queryCheckExecution = await db.getQueryExecution({ 
-        QueryExecutionId: queryExecution.QueryExecutionId,
-      }).promise();
+        queryCheckExecution = await db.getQueryExecution({ 
+            QueryExecutionId: queryExecution.QueryExecutionId,
+        }).promise();
+        
+        console.log(
+            `Query ${queryExecution.QueryExecutionId} ` +
+            `is ${queryCheckExecution.QueryExecution.Status.State} ` +
+            `${queryCheckExecution.QueryExecution.Statistics?.TotalExecutionTimeInMillis} ms elapsed. ` +
+            `${this.formatBytes(queryCheckExecution.QueryExecution.Statistics?.DataScannedInBytes)} scanned`
+        );
 
       await this.sleep(200);
     } while (!endStatus.has(queryCheckExecution.QueryExecution.Status.State))
@@ -81,20 +102,27 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       throw new Error(queryCheckExecution.QueryExecution.Status.StateChangeReason)
     }
 
+    return queryCheckExecution;
+  }
+
+  private async getQueryResults(
+    queryExecutionId: string
+  ) {
     const results: PromiseResult<GetQueryResultsOutput, AWSError>[] = [];
     let result: PromiseResult<GetQueryResultsOutput, AWSError>;
     let nextToken: string | null = null;
+    let db = await this.open();
 
     do {
       const payload: GetQueryResultsInput = {
-        QueryExecutionId: queryExecution.QueryExecutionId
+        QueryExecutionId: queryExecutionId
       };
       if (nextToken) {
         payload.NextToken = nextToken;
         await this.sleep(200);
       }
       result = await db.getQueryResults(payload).promise();
-      nextToken = result.NextToken;
+      nextToken = result?.NextToken;
       results.push(result);
     } while (nextToken);
 
@@ -102,7 +130,8 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
   }
 
   public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
-    const results = await this.rawQuery(queries.toString());
+    const queryExecution = await this.rawQuery(queries.toString());
+    const results = await this.getQueryResults(queryExecution.QueryExecution?.QueryExecutionId || '');
     const columns = results[0].ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
     const resultSet = [];
     results.forEach((result, i) => {
@@ -123,7 +152,9 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
     const response: NSDatabase.IResult[] = [{
       cols: columns,
       connId: this.getId(),
-      messages: [{ date: new Date(), message: `Query ok with ${resultSet.length} results`}],
+      messages: [{ date: new Date(), message: `Query "${queryExecution.QueryExecution?.QueryExecutionId}" ` +
+      `ok with ${resultSet.length} results. ` +
+      `${this.formatBytes(queryExecution?.QueryExecution?.Statistics?.DataScannedInBytes||0)} scanned`}],
       results: resultSet,
       query: queries.toString(),
       requestId: opt.requestId,

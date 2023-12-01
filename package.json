@@ -3,9 +3,6 @@
   "displayName": "SQLTools AWS Athena Driver",
   "description": "SQLTools AWS Athena Driver",
   "version": "0.3.0",
-  "engines": {
-    "vscode": "^1.42.0"
-  },
   "publisher": "brunoventura",
   "license": "MIT",
   "icon": "icons/extension_icon.png",
@@ -13,24 +10,20 @@
     "type": "git",
     "url": "https://github.com/kovihq/sqltools-athena-driver"
   },
-  "bugs": {},
-  "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./"
+  "engines": {
+    "vscode": "^1.84.0"
   },
-  "keywords": [
-    "athena",
-    "sqltools-driver"
-  ],
   "categories": [
     "Programming Languages",
     "Snippets",
     "Formatters",
     "Other"
   ],
-  "extensionDependencies": [
-    "mtxr.sqltools"
+  "keywords": [
+    "athena",
+    "sqltools-driver",
+    "sqltools",
+    "driver"
   ],
   "activationEvents": [
     "*",
@@ -38,16 +31,43 @@
     "onCommand:sqltools.*"
   ],
   "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "sqltools-athena-driver.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
   "dependencies": {
-    "@sqltools/base-driver": "latest",
     "@sqltools/types": "latest",
     "aws-sdk": "^2.869.0",
     "uuid": "^7.0.3"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.5.5",
-    "@types/node": "^14.0.9",
-    "@types/vscode": "^1.42.0",
-    "typescript": "^3.7.3"
-  }
+    "@sqltools/base-driver": "^0.1.11",
+    "@types/mocha": "^10.0.3",
+    "@types/node": "18.x",
+    "@types/vscode": "latest",
+    "@typescript-eslint/eslint-plugin": "^6.9.0",
+    "@typescript-eslint/parser": "^6.9.0",
+    "@vscode/test-electron": "^2.3.6",
+    "aws-sdk": "^2.869.0",
+    "eslint": "^8.52.0",
+    "glob": "^10.3.10",
+    "mocha": "^10.2.0",
+    "typescript": "^5.2.2"
+  },
+  "extensionDependencies": [
+    "mtxr.sqltools"
+  ]
 }
