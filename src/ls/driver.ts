@@ -2,9 +2,8 @@ import AbstractDriver from '@sqltools/base-driver';
 import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue } from '@sqltools/types';
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
-import { Athena, AWSError, Credentials, Glue, SharedIniFileCredentials } from 'aws-sdk';
-import { PromiseResult } from 'aws-sdk/lib/request';
-import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
+import { Athena, S3, Credentials, Glue, SharedIniFileCredentials } from 'aws-sdk';
+import { GetQueryResultsInput } from 'aws-sdk/clients/athena';
 
 export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.ClientConfiguration> implements IConnectionDriver {
 
@@ -81,44 +80,74 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       throw new Error(queryCheckExecution.QueryExecution.Status.StateChangeReason)
     }
 
-    const results: PromiseResult<GetQueryResultsOutput, AWSError>[] = [];
-    let result: PromiseResult<GetQueryResultsOutput, AWSError>;
-    let nextToken: string | null = null;
+    /* Just get the first page of results so we can do column mapping */
+    const payload: GetQueryResultsInput = {
+      QueryExecutionId: queryExecution.QueryExecutionId
+    };
 
-    do {
-      const payload: GetQueryResultsInput = {
-        QueryExecutionId: queryExecution.QueryExecutionId
+    let core_result = await db.getQueryResults(payload).promise();
+
+    console.log('Query check execution');
+    console.log(queryCheckExecution);
+
+    const bucket = queryCheckExecution.QueryExecution.ResultConfiguration.OutputLocation.split('/')[2];
+    const key = queryCheckExecution.QueryExecution.ResultConfiguration.OutputLocation.split('/').slice(3).join('/');
+  
+    const s3 = new S3({ 
+      apiVersion: '2006-03-01', 
+      region: this.credentials.region || 'us-east-1', 
+      credentials: new Credentials({
+        accessKeyId: this.credentials.accessKeyId,
+        secretAccessKey: this.credentials.secretAccessKey,
+        sessionToken: this.credentials.sessionToken,
+      })
+    });
+
+    let resultsBase: String = await new Promise((resolve, reject) => {
+      const params = {
+        Bucket: bucket,
+        Key: key
       };
-      if (nextToken) {
-        payload.NextToken = nextToken;
-        await this.sleep(200);
-      }
-      result = await db.getQueryResults(payload).promise();
-      nextToken = result.NextToken;
-      results.push(result);
-    } while (nextToken);
+  
+      s3.getObject(params, (err, data) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(data.Body.toString('utf-8'));
+        }
+      });
+    });
 
-    return results;
+
+    // resultsBase CSV to JSON array
+    let resultsJson = resultsBase.split('\n').map(row => row.split(','));
+    
+    // remove the first row since its a colum header
+    resultsJson.shift();
+
+    const columns = core_result.ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
+
+    const resultSet = [];
+    
+    resultsJson.forEach(row => {
+      let resultToAppend = {}
+      columns.forEach((column, i) => {
+        resultToAppend[column] = row[i];
+      }
+      );
+      resultSet.push(resultToAppend);
+    });
+
+    return {
+      columns: columns,
+      results: resultSet
+    };
   }
 
   public query: (typeof AbstractDriver)['prototype']['query'] = async (queries, opt = {}) => {
     const results = await this.rawQuery(queries.toString());
-    const columns = results[0].ResultSet.ResultSetMetadata.ColumnInfo.map((info) => info.Name);
-    const resultSet = [];
-    results.forEach((result, i) => {
-      const rows = result.ResultSet.Rows;
-      if (i === 0) {
-        rows.shift();
-      }
-      rows.forEach(({ Data }) => {
-        resultSet.push(
-          Object.assign(
-            {},
-            ...Data.map((column, i) => ({ [columns[i]]: column.VarCharValue }))
-          )
-        );
-      });
-    });
+    const columns = results.columns;
+    const resultSet = results.results;
 
     const response: NSDatabase.IResult[] = [{
       cols: columns,
@@ -186,7 +215,7 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
           iconName: column.Name.toLowerCase() === 'id' ? 'pk' : 'column',
           table: parent,
         }));
-        console.log(to_return);
+
         return to_return;
       case ContextValue.RESOURCE_GROUP:
         return this.getChildrenForGroup({ item, parent });
