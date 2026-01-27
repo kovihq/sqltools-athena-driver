@@ -16,7 +16,7 @@
       "title": "Connect using",
       "type": "string",
       "minLength": 1,
-      "enum": ["Profile", "Session Credentials"],
+      "enum": ["Profile", "SSO Profile", "Session Credentials"],
       "default": "Profile"
     },
     "outputLocation": {
@@ -34,6 +34,21 @@
             },
             "profile": {
               "title": "AWS Profile",
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "workgroup", "profile", "region"
+          ]
+        },
+        {
+          "properties": {
+            "connectionMethod": {
+              "enum": ["SSO Profile"]
+            },
+            "profile": {
+              "title": "AWS SSO Profile",
               "type": "string",
               "minLength": 1
             }

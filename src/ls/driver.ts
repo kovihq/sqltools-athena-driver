@@ -2,7 +2,7 @@ import AbstractDriver from '@sqltools/base-driver';
 import { IConnectionDriver, MConnectionExplorer, NSDatabase, Arg0, ContextValue } from '@sqltools/types';
 import queries from './queries';
 import { v4 as generateId } from 'uuid';
-import { Athena, AWSError, Credentials, SharedIniFileCredentials } from 'aws-sdk';
+import { Athena, AWSError, Credentials, SsoCredentials, SharedIniFileCredentials } from 'aws-sdk';
 import { PromiseResult } from 'aws-sdk/lib/request';
 import { GetQueryResultsInput, GetQueryResultsOutput } from 'aws-sdk/clients/athena';
 
@@ -35,14 +35,23 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
       return this.connection;
     }
 
-    if (this.credentials.connectionMethod !== 'Profile')
-      var credentials = new Credentials({
-        accessKeyId: this.credentials.accessKeyId,
-        secretAccessKey: this.credentials.secretAccessKey,
-        sessionToken: this.credentials.sessionToken,
-      });
-    else
-      var credentials = new SharedIniFileCredentials({ profile: this.credentials.profile });
+    switch (this.credentials.connectionMethod) {
+      case 'Session Credentials':
+        var credentials = new Credentials({
+          accessKeyId: this.credentials.accessKeyId,
+          secretAccessKey: this.credentials.secretAccessKey,
+          sessionToken: this.credentials.sessionToken,
+        });
+        break;
+      case 'SSO Profile':
+        var credentials = new SsoCredentials({
+          profile: this.credentials.profile,
+        });
+        break;
+      default:
+        var credentials = new SharedIniFileCredentials({ profile: this.credentials.profile });
+        break;
+    }
 
     this.connection = Promise.resolve(new Athena({
       credentials: credentials,
