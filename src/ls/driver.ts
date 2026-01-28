@@ -281,9 +281,12 @@ export default class AthenaDriver extends AbstractDriver<Athena, Athena.Types.Cl
         const tables = await this.rawQuery(`SHOW TABLES IN \`${parent.database}\``);
         const views = await this.rawQuery(`SHOW VIEWS IN "${parent.database}"`);
 
-        const viewsSet = new Set(views[0].ResultSet.Rows.map((row) => row.Data[0].VarCharValue));
+        const tablesResult = await this.getQueryResults(tables.QueryExecution.QueryExecutionId);
+        const viewsResult = await this.getQueryResults(views.QueryExecution.QueryExecutionId);
 
-        return tables[0].ResultSet.Rows
+        const viewsSet = new Set(viewsResult[0].ResultSet.Rows.map((row) => row.Data[0].VarCharValue));
+
+        return tablesResult[0].ResultSet.Rows
           .filter((row) => !viewsSet.has(row.Data[0].VarCharValue))
           .map((row) => ({
             database: parent.database,
