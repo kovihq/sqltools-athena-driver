@@ -51,7 +51,7 @@
     "@sqltools/base-driver": "^0.1.11",
     "@sqltools/types": "latest",
     "aws-sdk": "^2.869.0",
-    "uuid": "^7.0.3"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.5.5",
